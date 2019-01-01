@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -7,10 +8,11 @@ public class RollerBall : MonoBehaviour
     public GameObject ViewCamera;
     public bool UseManualBallController;
 
-    private const int IntervalMilliseconds = 25;
-    private const float Speed = 4f;
+    private const int IntervalMilliseconds = 15;
+    private const int DelayAfterBallHasNoEnergyMilliseconds = 10000;
+    private const float Speed = 32f;
 
-    private Rigidbody mRigidBody;
+    private Rigidbody rigidBody;
     private int lastCallTime = -IntervalMilliseconds;
     private int iterations;
     private BallControl ballController;
@@ -24,17 +26,19 @@ public class RollerBall : MonoBehaviour
 
     private void Start()
     {
-        mRigidBody = GetComponent<Rigidbody>();
-        Debug.Assert(mRigidBody != null);
+        rigidBody = GetComponent<Rigidbody>();
+        Debug.Assert(rigidBody != null);
         lastCallTime = (int)(Time.time * 1000) + IntervalMilliseconds;
         ballController = UseManualBallController ? (BallControl) new ManualBallControl() : new AutoBallControl();
-        ballController.SetMaze();
+        try { ballController.SetMaze(); }
+        catch (Exception exception) { if (Debug.isDebugBuild) throw exception; Application.Quit(1); }
         if (MazeDescription.IsConsoleRun())
             Time.timeScale = 100.0f;
     }
 
     private void Finish()
     {
+        Debug.Log("Finish. " + visitedCoinCount);
         finished = true;
         SaveBallPosition();
         Time.timeScale = 1.0f;
@@ -76,45 +80,36 @@ public class RollerBall : MonoBehaviour
 
         if (iterations == MazeDescription.BallEnergy) {
             Debug.Log("Ball has no energy!");
-            success = false;
-            Finish();
+            if (Time.time * 1000 > lastCallTime + DelayAfterBallHasNoEnergyMilliseconds)
+                Finish();
             return;
         }
-
-        if (!MazeDescription.IsConsoleRun()) {
-            var stepCount = 0;
-            while (Time.time * 1000 + IntervalMilliseconds >= lastCallTime) {
-                ++stepCount;
-                lastCallTime += IntervalMilliseconds;
-            }
-            if (stepCount == 0)
-                return;
-        }
+        lastCallTime = (int)(Time.time * 1000);
 
         SaveBallPosition();
-        if (mRigidBody != null) {
-            var move = ballController.GetMove(transform.position.x, transform.position.z);
-            var velocity = Vector3.zero;
-            if ((move & BallControl.MoveTypeRight) != 0)
-                velocity += Vector3.right;
-            if ((move & BallControl.MoveTypeBottom) != 0)
-                velocity += Vector3.back;
-            if ((move & BallControl.MoveTypeLeft) != 0)
-                velocity -= Vector3.right;
-            if ((move & BallControl.MoveTypeTop) != 0)
-                velocity -= Vector3.back;
+        var move = 0;
+        try { move = ballController.GetMove(transform.position.x, transform.position.z); }
+        catch (Exception exception) { if (Debug.isDebugBuild) throw exception; Application.Quit(1); }
+        var torque = Vector3.zero;
+        if ((move & BallControl.MoveTypeRight) != 0)
+            torque += Vector3.right;
+        if ((move & BallControl.MoveTypeBottom) != 0)
+            torque += Vector3.back;
+        if ((move & BallControl.MoveTypeLeft) != 0)
+            torque -= Vector3.right;
+        if ((move & BallControl.MoveTypeTop) != 0)
+            torque -= Vector3.back;
 
-            mRigidBody.velocity = velocity;
-            if (velocity != Vector3.zero)
-                mRigidBody.velocity = velocity.normalized * Speed;
-            Debug.Log(iterations);
-            ++iterations;
+        if (torque != Vector3.zero) {
+            var newTorque = torque.normalized * Speed;
+            rigidBody.AddTorque(new Vector3(newTorque.z, 0, -newTorque.x));
         }
+        ++iterations;
+        Debug.Log(iterations + " " + visitedCoinCount);
 
         if (ViewCamera != null) {
             var direction = (Vector3.up * 5 + Vector3.back) * 4;
             RaycastHit hit;
-            Debug.DrawLine(transform.position,transform.position + direction,Color.red);
             ViewCamera.transform.position =
                 Physics.Linecast(transform.position, transform.position + direction, out hit)
                     ? hit.point

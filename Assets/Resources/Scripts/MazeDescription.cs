@@ -3,7 +3,6 @@ using UnityEngine;
 
 public abstract class MazeDescription
 {
-    public static int SeedValue;
     public static int Rows;
     public static int Cols;
     public static int Coins;
