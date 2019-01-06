@@ -450,7 +450,7 @@ MonoBehaviour:
   ReadMazeDataFromFile: 0
   Rows: 100
   Cols: 100
-  BallEnergy: 30000
+  BallEnergy: 25000
 --- !u!4 &968071106
 Transform:
   m_ObjectHideFlags: 0
