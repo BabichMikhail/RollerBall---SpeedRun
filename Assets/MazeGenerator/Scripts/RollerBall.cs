@@ -78,14 +78,6 @@ public class RollerBall : MonoBehaviour
             return;
         }
 
-        if (iterations == MazeDescription.BallEnergy) {
-            Debug.Log("Ball has no energy!");
-            if (Time.time * 1000 > lastCallTime + DelayAfterBallHasNoEnergyMilliseconds)
-                Finish();
-            return;
-        }
-        lastCallTime = (int)(Time.time * 1000);
-
         SaveBallPosition();
         var move = 0;
         try { move = ballController.GetMove(transform.position.x, transform.position.z); }
